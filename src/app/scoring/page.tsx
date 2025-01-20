@@ -2,9 +2,9 @@
 
 import { useScoreStore } from '@/store/scoreStore';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
-export default function ScoringPage() {
+function ScoringContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const team1 = searchParams.get('team1') || '';
@@ -33,7 +33,6 @@ export default function ScoringPage() {
     handleWide,
     handleNoBall,
     resetMatch,
-    undoLastBall,
     completeInnings,
     setMaxOvers
   } = useScoreStore();
@@ -176,14 +175,6 @@ export default function ScoringPage() {
         >
           {isWicketPending ? 'Cancel Wicket' : 'Wicket'}
         </button>
-        {canUndo && (
-          <button
-            onClick={undoLastBall}
-            className='bg-gray-500 hover:bg-gray-600 active:bg-gray-700 text-white font-bold py-3 rounded-lg'
-          >
-            Undo
-          </button>
-        )}
         {includeWides && (
           <button
             onClick={() => handleWide(widesAfter)}
@@ -273,5 +264,13 @@ export default function ScoringPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ScoringPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ScoringContent />
+    </Suspense>
   );
 } 
