@@ -10,9 +10,6 @@ function ScoringContent() {
   const team1 = searchParams.get('team1') || '';
   const team2 = searchParams.get('team2') || '';
   const overs = parseInt(searchParams.get('overs') || '0');
-  const widesAfter = parseInt(searchParams.get('widesAfter') || '0');
-  const includeWides = searchParams.get('includeWides') === 'true';
-  const includeNoBalls = searchParams.get('includeNoBalls') === 'true';
 
   const [showVictoryBanner, setShowVictoryBanner] = useState(false);
   const [victoryMessage, setVictoryMessage] = useState('');
@@ -30,8 +27,10 @@ function ScoringContent() {
     isWicketPending,
     updateScore, 
     setWicketPending,
-    handleWide,
-    handleNoBall,
+    handleExtra,
+    isExtraPending,
+    setExtraPending,
+    extraType,
     resetMatch,
     completeInnings,
     setMaxOvers
@@ -43,7 +42,6 @@ function ScoringContent() {
 
   const isInningsComplete = currentOver >= overs || wickets >= 10;
   const isMatchComplete = !isFirstInnings && (isInningsComplete || (target && runs >= target));
-  const canUndo = currentOverBalls.length > 0;
 
   useEffect(() => {
     if (isMatchComplete) {
@@ -115,7 +113,7 @@ function ScoringContent() {
             {currentOver}.{balls % 6}/{overs}
           </p>
         </div>
-        {(includeWides || includeNoBalls) && (
+        { (
           <p className='text-sm mt-1'>Extras: {extras}</p>
         )}
         {!isFirstInnings && target && (
@@ -175,31 +173,38 @@ function ScoringContent() {
         >
           {isWicketPending ? 'Cancel Wicket' : 'Wicket'}
         </button>
-        {includeWides && (
-          <button
-            onClick={() => handleWide(widesAfter)}
-            className={`${
-              isWicketPending
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-yellow-500 hover:bg-yellow-600'
-            } active:bg-yellow-700 text-white font-bold py-3 rounded-lg`}
-          >
-            Wide
-          </button>
-        )}
-        {includeNoBalls && (
-          <button
-            onClick={handleNoBall}
-            className={`${
-              isWicketPending
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-orange-500 hover:bg-orange-600'
-            } active:bg-orange-700 text-white font-bold py-3 rounded-lg`}
-          >
-            No Ball
-          </button>
-        )}
+        <button
+          onClick={() => setExtraPending(isExtraPending && extraType === 'wide' ? null : 'wide')}
+          className={`${
+            isExtraPending && extraType === 'wide'
+              ? 'bg-yellow-700'
+              : isWicketPending
+              ? 'bg-red-500 hover:bg-red-600'
+              : 'bg-yellow-500 hover:bg-yellow-600'
+          } active:bg-yellow-700 text-white font-bold py-3 rounded-lg`}
+        >
+          {isExtraPending && extraType === 'wide' ? 'Cancel Wide' : 'Wide'}
+        </button>
+        <button
+          onClick={() => setExtraPending(isExtraPending && extraType === 'noBall' ? null : 'noBall')}
+          className={`${
+            isExtraPending && extraType === 'noBall'
+              ? 'bg-orange-700'
+              : isWicketPending
+              ? 'bg-red-500 hover:bg-red-600'
+              : 'bg-orange-500 hover:bg-orange-600'
+          } active:bg-orange-700 text-white font-bold py-3 rounded-lg`}
+        >
+          {isExtraPending && extraType === 'noBall' ? 'Cancel No Ball' : 'No Ball'}
+        </button>
       </div>
+
+      {/* Add status message for extras */}
+      {isExtraPending && (
+        <p className='mt-2 text-yellow-500 font-bold'>
+          {extraType === 'wide' ? 'Wide' : 'No Ball'} pending - Select runs
+        </p>
+      )}
 
       {/* Control Buttons */}
       <div className='flex gap-2 mb-4'>

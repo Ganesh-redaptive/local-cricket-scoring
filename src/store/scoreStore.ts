@@ -29,15 +29,17 @@ interface ScoreState {
   currentOverBalls: BallDetail[]
   isWicketPending: boolean
   isInningsComplete: boolean
+  isExtraPending: boolean
+  extraType: 'wide' | 'noBall' | null
   setWicketPending: (isPending: boolean) => void
   updateScore: (runs: number) => void
-  handleWide: (widesAfter: number) => void
-  handleNoBall: () => void
+  handleExtra: (type: 'wide' | 'noBall') => void
   resetMatch: () => void
   completeInnings: () => void
   maxOvers: number
   setMaxOvers: (maxOvers: number) => void
   getInitialInningsState: () => Partial<ScoreState>
+  setExtraPending: (type: 'wide' | 'noBall' | null) => void
 }
 
 export const useScoreStore = create<ScoreState>()(
@@ -53,7 +55,9 @@ export const useScoreStore = create<ScoreState>()(
         extras: 0,
         currentBallInOver: 0,
         currentOverBalls: [],
-        oversHistory: []
+        oversHistory: [],
+        isExtraPending: false,
+        extraType: null,
       });
 
       return {
@@ -72,10 +76,20 @@ export const useScoreStore = create<ScoreState>()(
         isWicketPending: false,
         isInningsComplete: false,
         maxOvers: 0,
+        isExtraPending: false,
+        extraType: null,
         setMaxOvers: (maxOvers) => set({ maxOvers }),
         setWicketPending: (isPending) => set({ isWicketPending: isPending }),
         getInitialInningsState,
-
+        setExtraPending: (type) => set({ 
+          isExtraPending: type !== null,
+          extraType: type 
+        }),
+        handleExtra: (type) => set((state) => ({
+          ...state,
+          isExtraPending: true,
+          extraType: type
+        })),
         updateScore: (runs) => set((state) => {
           const nextBall = (state.currentBallInOver + 1) % 6;
           const nextOver = Math.floor((state.balls + 1) / 6);
@@ -83,14 +97,18 @@ export const useScoreStore = create<ScoreState>()(
           
           const newBallDetail: BallDetail = {
             runs,
-            extras: 0,
-            type: state.isWicketPending ? 'wicket' : 'normal'
+            extras: state.isExtraPending ? 1 : 0,
+            type: state.isWicketPending ? 'wicket' : 
+                  state.extraType === 'wide' ? 'wide' :
+                  state.extraType === 'noBall' ? 'noBall' : 'normal'
           };
           
           const updatedCurrentOverBalls = [...state.currentOverBalls, newBallDetail];
           let updatedOversHistory = [...state.oversHistory];
           
-          if (nextBall === 0) {
+          const shouldIncrementBall = !state.isExtraPending || state.extraType === 'noBall';
+          
+          if (nextBall === 0 && shouldIncrementBall) {
             const overDetail: OverDetail = {
               overNumber: state.currentOver,
               balls: updatedCurrentOverBalls,
@@ -100,7 +118,13 @@ export const useScoreStore = create<ScoreState>()(
             updatedOversHistory.push(overDetail);
           }
 
-          // Handle innings completion
+          // For both wides and no-balls, only count the runs scored (no automatic +1)
+          const extraRuns = state.isExtraPending ? runs : 0;
+          // For normal balls, count the runs normally
+          const normalRuns = !state.isExtraPending ? runs : 0;
+          
+          const totalRunsForBall = normalRuns + extraRuns;
+
           if (isInningsComplete) {
             if (state.isFirstInnings) {
               return {
@@ -112,7 +136,6 @@ export const useScoreStore = create<ScoreState>()(
                 isFirstInnings: false
               };
             } else {
-              // Second innings is complete, end the match
               return {
                 ...state,
                 runs: state.runs + runs,
@@ -125,69 +148,37 @@ export const useScoreStore = create<ScoreState>()(
                 noBallsInOver: nextBall === 0 ? 0 : state.noBallsInOver,
                 currentOverBalls: nextBall === 0 ? [] : updatedCurrentOverBalls,
                 oversHistory: updatedOversHistory,
-                isWicketPending: false
+                isWicketPending: false,
+                isExtraPending: false,
+                extraType: null
               };
             }
           }
 
-          // Normal ball update (innings not complete)
           return {
             ...state,
-            runs: state.runs + runs,
+            runs: state.runs + totalRunsForBall,
             wickets: state.isWicketPending ? state.wickets + 1 : state.wickets,
-            balls: state.balls + 1,
-            currentOver: nextOver,
-            currentBallInOver: nextBall,
+            balls: shouldIncrementBall ? state.balls + 1 : state.balls,
+            currentOver: shouldIncrementBall ? nextOver : state.currentOver,
+            currentBallInOver: shouldIncrementBall ? nextBall : state.currentBallInOver,
+            extras: state.isExtraPending ? state.extras + 1 : state.extras,
             isInningsComplete,
-            widesInOver: nextBall === 0 ? 0 : state.widesInOver,
-            noBallsInOver: nextBall === 0 ? 0 : state.noBallsInOver,
-            currentOverBalls: nextBall === 0 ? [] : updatedCurrentOverBalls,
+            currentOverBalls: nextBall === 0 && shouldIncrementBall ? [] : updatedCurrentOverBalls,
             oversHistory: updatedOversHistory,
-            isWicketPending: false
+            isWicketPending: false,
+            isExtraPending: false,
+            extraType: null
           };
         }),
-
-        handleWide: (widesAfter) => set((state) => {
-          const isNewOver = (state.balls + 1) % 6 === 0;
-          const widesInOver = state.widesInOver + 1;
-          const shouldAddRun = widesAfter === 0 || widesInOver > widesAfter;
-
-          const newBall: BallDetail = {
-            type: 'wide',
-            runs: 0,
-            extras: shouldAddRun ? 1 : 0
-          };
-
-          return {
-            ...state,
-            runs: state.runs + (shouldAddRun ? 1 : 0),
-            extras: state.extras + 1,
-            widesInOver: isNewOver ? 0 : widesInOver,
-            currentOverBalls: [...state.currentOverBalls, newBall]
-          };
-        }),
-
-        handleNoBall: () => set((state) => {
-          const newBall: BallDetail = {
-            type: 'noBall',
-            runs: 0,
-            extras: 1
-          };
-
-          return {
-            ...state,
-            extras: state.extras + 1,
-            currentOverBalls: [...state.currentOverBalls, newBall]
-          };
-        }),
-
         resetMatch: () => set(() => ({
           ...getInitialInningsState(),
           isFirstInnings: true,
           target: null,
-          isWicketPending: false
+          isWicketPending: false,
+          isExtraPending: false,
+          extraType: null
         })),
-
         completeInnings: () => set((state) => ({
           ...getInitialInningsState(),
           isFirstInnings: false,
